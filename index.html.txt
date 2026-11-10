@@ -1,0 +1,182 @@
+-- ENUMS
+CREATE TYPE item_condition AS ENUM ('Sangat Baik', 'Baik', 'Cukup', 'Perlu Perbaikan', 'Rusak');
+CREATE TYPE service_status AS ENUM ('Belum Dikerjakan', 'Terjadwal', 'Sedang Dikerjakan', 'Selesai', 'Ditunda');
+CREATE TYPE bill_status AS ENUM ('Belum Dibayar', 'Menunggu Pembayaran', 'Sudah Dibayar', 'Terlambat');
+CREATE TYPE tx_type AS ENUM ('Pemasukan', 'Pengeluaran');
+
+-- 1. PROFILES & HOUSEHOLDS
+CREATE TABLE households (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  currency TEXT DEFAULT 'IDR',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  avatar_url TEXT,
+  role TEXT DEFAULT 'Owner', -- Owner | Member
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. INVENTORY & ASSETS (MODUL 4 & 5)
+CREATE TABLE inventory_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  photo_url TEXT,
+  category TEXT NOT NULL, -- Elektronik, Perabotan, Kendaraan, dll.
+  brand TEXT,
+  model_number TEXT,
+  serial_number TEXT,
+  purchase_date DATE,
+  purchase_price NUMERIC(15,2),
+  purchase_location TEXT,
+  storage_location TEXT,
+  condition item_condition DEFAULT 'Sangat Baik',
+  is_asset BOOLEAN DEFAULT FALSE,
+  warranty_end_date DATE,
+  estimated_current_value NUMERIC(15,2),
+  receipt_url TEXT,
+  notes TEXT,
+  qr_code_hash TEXT UNIQUE,
+  is_archived BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. VEHICLES & VEHICLE SERVICES (MODUL 6)
+CREATE TABLE vehicles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  inventory_item_id UUID REFERENCES inventory_items(id) ON DELETE SET NULL,
+  name TEXT NOT NULL, -- e.g. Honda Vario 160
+  vehicle_type TEXT NOT NULL, -- Motor / Mobil
+  brand TEXT NOT NULL,
+  model TEXT,
+  year INT,
+  license_plate TEXT NOT NULL,
+  chassis_number TEXT,
+  engine_number TEXT,
+  engine_cc INT,
+  current_mileage INT DEFAULT 0,
+  tax_due_date DATE,
+  stnk_due_date DATE,
+  last_tax_amount NUMERIC(15,2),
+  photo_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE vehicle_services (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
+  service_date DATE NOT NULL,
+  mileage_at_service INT NOT NULL,
+  category TEXT NOT NULL, -- Ganti Oli, Servis Rutin, Rem, dll.
+  workshop_name TEXT,
+  cost NUMERIC(15,2) DEFAULT 0,
+  replaced_parts TEXT,
+  mechanic_notes TEXT,
+  receipt_url TEXT,
+  next_service_date DATE,
+  next_service_mileage INT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. HOUSE MAINTENANCE (MODUL 7)
+CREATE TABLE maintenance_tasks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  task_name TEXT NOT NULL,
+  category TEXT NOT NULL, -- AC, Listrik, Plumbing, dll.
+  location TEXT,
+  description TEXT,
+  photo_before_url TEXT,
+  photo_after_url TEXT,
+  last_serviced_at DATE,
+  next_due_date DATE,
+  estimated_cost NUMERIC(15,2),
+  actual_cost NUMERIC(15,2),
+  status service_status DEFAULT 'Terjadwal',
+  assigned_to TEXT,
+  is_recurrent BOOLEAN DEFAULT FALSE,
+  recurrence_interval_months INT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. BILLS & PAYMENTS (MODUL 8)
+CREATE TABLE bills (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  title TEXT NOT NULL, -- Listrik PLN, Internet, PBB, dll.
+  category TEXT NOT NULL,
+  amount NUMERIC(15,2) NOT NULL,
+  billing_date DATE,
+  due_date DATE NOT NULL,
+  paid_date DATE,
+  payment_method TEXT,
+  status bill_status DEFAULT 'Belum Dibayar',
+  receipt_url TEXT,
+  is_recurring BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. FINANCIAL TRACKING (MODUL 9)
+CREATE TABLE financial_budgets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  monthly_limit NUMERIC(15,2) NOT NULL,
+  period_month INT NOT NULL,
+  period_year INT NOT NULL
+);
+
+CREATE TABLE financial_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  type tx_type NOT NULL,
+  category TEXT NOT NULL,
+  amount NUMERIC(15,2) NOT NULL,
+  transaction_date DATE NOT NULL,
+  payment_method TEXT,
+  notes TEXT,
+  receipt_url TEXT,
+  related_bill_id UUID REFERENCES bills(id) ON DELETE SET NULL,
+  related_maintenance_id UUID REFERENCES maintenance_tasks(id) ON DELETE SET NULL,
+  related_vehicle_service_id UUID REFERENCES vehicle_services(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. DIGITAL DOCUMENT ARCHIVE (MODUL 10)
+CREATE TABLE digital_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL, -- KK, KTP, STNK, BPKB, Sertifikat, Nota, Garansi
+  document_number TEXT,
+  owner_name TEXT,
+  issue_date DATE,
+  expiry_date DATE,
+  file_url TEXT NOT NULL,
+  file_type TEXT NOT NULL, -- PDF, PNG, JPG
+  physical_location TEXT,
+  notes TEXT,
+  is_sensitive BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ROW LEVEL SECURITY (RLS) POLICY EXAMPLE
+ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only access their household inventory" ON inventory_items
+  FOR ALL USING (household_id IN (
+    SELECT household_id FROM profiles WHERE id = auth.uid()
+  ));
