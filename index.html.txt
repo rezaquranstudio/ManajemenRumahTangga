@@ -1,182 +1,1558 @@
--- ENUMS
-CREATE TYPE item_condition AS ENUM ('Sangat Baik', 'Baik', 'Cukup', 'Perlu Perbaikan', 'Rusak');
-CREATE TYPE service_status AS ENUM ('Belum Dikerjakan', 'Terjadwal', 'Sedang Dikerjakan', 'Selesai', 'Ditunda');
-CREATE TYPE bill_status AS ENUM ('Belum Dibayar', 'Menunggu Pembayaran', 'Sudah Dibayar', 'Terlambat');
-CREATE TYPE tx_type AS ENUM ('Pemasukan', 'Pengeluaran');
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOMEBASE — Smart Household Management System</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'Inter', '-apple-system', 'sans-serif'],
+                    },
+                    colors: {
+                        ios: {
+                            bg: '#F5F6FA',
+                            darkBg: '#121214',
+                            cardLight: 'rgba(255, 255, 255, 0.85)',
+                            cardDark: 'rgba(28, 28, 30, 0.85)',
+                            primary: '#2878F0',
+                            secondary: '#8B8CEB',
+                            accent: '#A8B8FF',
+                            text: '#1C1C1E',
+                            subtext: '#8E8E93',
+                            success: '#34C759',
+                            warning: '#FF9F0A',
+                            danger: '#FF453A'
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'glass-sm': '0 4px 16px 0 rgba(31, 38, 135, 0.05)',
+                        'ios-float': '0 12px 40px -10px rgba(0, 0, 0, 0.12)'
+                    }
+                }
+            }
+        }
+    </script>
 
--- 1. PROFILES & HOUSEHOLDS
-CREATE TABLE households (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  currency TEXT DEFAULT 'IDR',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  full_name TEXT NOT NULL,
-  avatar_url TEXT,
-  role TEXT DEFAULT 'Owner', -- Owner | Member
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+    <!-- Custom CSS Styles -->
+    <style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        .dark .glass-panel {
+            background: rgba(28, 28, 30, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .dark .glass-nav {
+            background: rgba(24, 24, 27, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(142, 142, 147, 0.3);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(142, 142, 147, 0.5);
+        }
+    </style>
+</head>
 
--- 2. INVENTORY & ASSETS (MODUL 4 & 5)
-CREATE TABLE inventory_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  photo_url TEXT,
-  category TEXT NOT NULL, -- Elektronik, Perabotan, Kendaraan, dll.
-  brand TEXT,
-  model_number TEXT,
-  serial_number TEXT,
-  purchase_date DATE,
-  purchase_price NUMERIC(15,2),
-  purchase_location TEXT,
-  storage_location TEXT,
-  condition item_condition DEFAULT 'Sangat Baik',
-  is_asset BOOLEAN DEFAULT FALSE,
-  warranty_end_date DATE,
-  estimated_current_value NUMERIC(15,2),
-  receipt_url TEXT,
-  notes TEXT,
-  qr_code_hash TEXT UNIQUE,
-  is_archived BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+<body x-data="homebaseApp()" x-init="initApp()" :class="{ 'dark': isDarkMode }" class="h-full bg-ios-bg dark:bg-ios-darkBg text-ios-text dark:text-gray-100 font-sans antialiased transition-colors duration-300">
 
--- 3. VEHICLES & VEHICLE SERVICES (MODUL 6)
-CREATE TABLE vehicles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  inventory_item_id UUID REFERENCES inventory_items(id) ON DELETE SET NULL,
-  name TEXT NOT NULL, -- e.g. Honda Vario 160
-  vehicle_type TEXT NOT NULL, -- Motor / Mobil
-  brand TEXT NOT NULL,
-  model TEXT,
-  year INT,
-  license_plate TEXT NOT NULL,
-  chassis_number TEXT,
-  engine_number TEXT,
-  engine_cc INT,
-  current_mileage INT DEFAULT 0,
-  tax_due_date DATE,
-  stnk_due_date DATE,
-  last_tax_amount NUMERIC(15,2),
-  photo_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+    <div class="min-h-screen flex flex-col md:flex-row pb-24 md:pb-0">
+        
+        <!-- DESKTOP SIDEBAR -->
+        <aside class="hidden md:flex flex-col w-64 glass-panel border-r border-gray-200/50 dark:border-gray-800/50 p-5 sticky top-0 h-screen z-30 justify-between">
+            <div>
+                <!-- App Header Logo -->
+                <div class="flex items-center space-x-3 px-3 py-2 mb-6">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-ios-primary to-ios-secondary flex items-center justify-center text-white shadow-md shadow-blue-500/30">
+                        <i data-lucide="home" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-extrabold text-lg tracking-tight leading-none bg-gradient-to-r from-ios-primary to-ios-secondary bg-clip-text text-transparent">HOMEBASE</h1>
+                        <p class="text-[10px] font-medium text-ios-subtext tracking-wider uppercase mt-1">Smart Household</p>
+                    </div>
+                </div>
 
-CREATE TABLE vehicle_services (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
-  service_date DATE NOT NULL,
-  mileage_at_service INT NOT NULL,
-  category TEXT NOT NULL, -- Ganti Oli, Servis Rutin, Rem, dll.
-  workshop_name TEXT,
-  cost NUMERIC(15,2) DEFAULT 0,
-  replaced_parts TEXT,
-  mechanic_notes TEXT,
-  receipt_url TEXT,
-  next_service_date DATE,
-  next_service_mileage INT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+                <!-- Global Search Trigger Button -->
+                <button @click="openSearchModal = true" class="w-full flex items-center justify-between px-3.5 py-2.5 mb-6 text-sm bg-gray-100/80 dark:bg-gray-800/80 text-ios-subtext rounded-xl hover:bg-gray-200/60 dark:hover:bg-gray-700/60 transition-colors">
+                    <span class="flex items-center space-x-2">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        <span>Cari segalanya...</span>
+                    </span>
+                    <kbd class="text-[10px] font-semibold bg-white dark:bg-gray-700 px-1.5 py-0.5 rounded shadow-sm border border-gray-200 dark:border-gray-600">⌘K</kbd>
+                </button>
 
--- 4. HOUSE MAINTENANCE (MODUL 7)
-CREATE TABLE maintenance_tasks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  task_name TEXT NOT NULL,
-  category TEXT NOT NULL, -- AC, Listrik, Plumbing, dll.
-  location TEXT,
-  description TEXT,
-  photo_before_url TEXT,
-  photo_after_url TEXT,
-  last_serviced_at DATE,
-  next_due_date DATE,
-  estimated_cost NUMERIC(15,2),
-  actual_cost NUMERIC(15,2),
-  status service_status DEFAULT 'Terjadwal',
-  assigned_to TEXT,
-  is_recurrent BOOLEAN DEFAULT FALSE,
-  recurrence_interval_months INT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+                <!-- Navigation Links -->
+                <nav class="space-y-1">
+                    <template x-for="item in navItems" :key="item.id">
+                        <button @click="activeTab = item.id; refreshIcons()" 
+                                :class="activeTab === item.id ? 'bg-ios-primary text-white shadow-lg shadow-blue-500/25 font-semibold' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'"
+                                class="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl text-sm transition-all duration-200">
+                            <i :data-lucide="item.icon" class="w-4 h-4"></i>
+                            <span x-text="item.label"></span>
+                        </button>
+                    </template>
+                </nav>
+            </div>
 
--- 5. BILLS & PAYMENTS (MODUL 8)
-CREATE TABLE bills (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  title TEXT NOT NULL, -- Listrik PLN, Internet, PBB, dll.
-  category TEXT NOT NULL,
-  amount NUMERIC(15,2) NOT NULL,
-  billing_date DATE,
-  due_date DATE NOT NULL,
-  paid_date DATE,
-  payment_method TEXT,
-  status bill_status DEFAULT 'Belum Dibayar',
-  receipt_url TEXT,
-  is_recurring BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+            <!-- Dark Mode & Profile Footer -->
+            <div class="pt-4 border-t border-gray-200/50 dark:border-gray-800/50 space-y-3">
+                <button @click="toggleDarkMode()" class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-medium text-ios-subtext hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition">
+                    <span class="flex items-center space-x-2">
+                        <i :data-lucide="isDarkMode ? 'sun' : 'moon'" class="w-4 h-4"></i>
+                        <span x-text="isDarkMode ? 'Light Mode' : 'Dark Mode'"></span>
+                    </span>
+                    <div class="w-8 h-4 bg-gray-300 dark:bg-gray-700 rounded-full p-0.5 transition-colors">
+                        <div class="w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform" :class="isDarkMode ? 'translate-x-4' : 'translate-x-0'"></div>
+                    </div>
+                </button>
 
--- 6. FINANCIAL TRACKING (MODUL 9)
-CREATE TABLE financial_budgets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  category TEXT NOT NULL,
-  monthly_limit NUMERIC(15,2) NOT NULL,
-  period_month INT NOT NULL,
-  period_year INT NOT NULL
-);
+                <div class="flex items-center space-x-3 px-3 py-2 rounded-2xl bg-white/40 dark:bg-gray-800/40 border border-gray-200/50 dark:border-gray-700/50">
+                    <img :src="profile.avatar" class="w-9 h-9 rounded-xl object-cover ring-2 ring-ios-primary/20" alt="Avatar">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-bold text-gray-900 dark:text-white truncate" x-text="profile.householdName"></p>
+                        <p class="text-[10px] text-ios-subtext truncate" x-text="profile.userName + ' (' + profile.role + ')'"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
 
-CREATE TABLE financial_transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  type tx_type NOT NULL,
-  category TEXT NOT NULL,
-  amount NUMERIC(15,2) NOT NULL,
-  transaction_date DATE NOT NULL,
-  payment_method TEXT,
-  notes TEXT,
-  receipt_url TEXT,
-  related_bill_id UUID REFERENCES bills(id) ON DELETE SET NULL,
-  related_maintenance_id UUID REFERENCES maintenance_tasks(id) ON DELETE SET NULL,
-  related_vehicle_service_id UUID REFERENCES vehicle_services(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 min-w-0 px-4 py-6 md:px-8 md:py-8 max-w-7xl mx-auto w-full">
+            
+            <!-- MOBILE TOP BAR -->
+            <div class="flex md:hidden items-center justify-between mb-6 pb-4 border-b border-gray-200/50 dark:border-gray-800/50">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-ios-primary to-ios-secondary flex items-center justify-center text-white shadow-md">
+                        <i data-lucide="home" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-extrabold text-base tracking-tight leading-none bg-gradient-to-r from-ios-primary to-ios-secondary bg-clip-text text-transparent">HOMEBASE</h1>
+                        <p class="text-[9px] font-medium text-ios-subtext uppercase">Smart Household</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button @click="openSearchModal = true" class="p-2 rounded-xl bg-gray-200/60 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                    </button>
+                    <button @click="toggleDarkMode()" class="p-2 rounded-xl bg-gray-200/60 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                        <i :data-lucide="isDarkMode ? 'sun' : 'moon'" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
 
--- 7. DIGITAL DOCUMENT ARCHIVE (MODUL 10)
-CREATE TABLE digital_documents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id UUID REFERENCES households(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  category TEXT NOT NULL, -- KK, KTP, STNK, BPKB, Sertifikat, Nota, Garansi
-  document_number TEXT,
-  owner_name TEXT,
-  issue_date DATE,
-  expiry_date DATE,
-  file_url TEXT NOT NULL,
-  file_type TEXT NOT NULL, -- PDF, PNG, JPG
-  physical_location TEXT,
-  notes TEXT,
-  is_sensitive BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+            <!-- MODULE 1: DASHBOARD -->
+            <section x-show="activeTab === 'dashboard'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" class="space-y-6">
+                <!-- Greeting Card -->
+                <div class="glass-panel p-6 rounded-3xl relative overflow-hidden shadow-glass">
+                    <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-gradient-to-br from-ios-primary/20 to-ios-secondary/20 rounded-full blur-2xl pointer-events-none"></div>
+                    <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="flex items-center space-x-2 text-xs font-semibold text-ios-primary mb-1 uppercase tracking-wider">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                                <span x-text="currentDateFormatted"></span>
+                            </div>
+                            <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight">
+                                <span x-text="greetingText"></span>, <span class="bg-gradient-to-r from-ios-primary to-ios-secondary bg-clip-text text-transparent" x-text="profile.userName"></span>!
+                            </h2>
+                            <p class="text-sm text-ios-subtext mt-1">Semua sistem rumah tangga Anda terpantau berjalan baik hari ini.</p>
+                        </div>
+                        <div class="flex items-center space-x-2 self-start md:self-auto">
+                            <button @click="openQuickActionModal = true" class="px-4 py-2.5 rounded-2xl bg-ios-primary text-white font-medium text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition flex items-center space-x-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                <span>Aksi Cepat</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
--- ROW LEVEL SECURITY (RLS) POLICY EXAMPLE
-ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can only access their household inventory" ON inventory_items
-  FOR ALL USING (household_id IN (
-    SELECT household_id FROM profiles WHERE id = auth.uid()
-  ));
+                <!-- Quick Overview Stats -->
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+                    <div class="glass-panel p-4 rounded-3xl shadow-glass">
+                        <div class="flex items-center justify-between text-ios-subtext mb-2">
+                            <span class="text-xs font-medium">Total Barang</span>
+                            <div class="p-2 rounded-xl bg-blue-500/10 text-ios-primary"><i data-lucide="box" class="w-4 h-4"></i></div>
+                        </div>
+                        <p class="text-xl md:text-2xl font-bold" x-text="inventory.length"></p>
+                        <p class="text-[11px] text-ios-subtext mt-1" x-text="inventory.filter(i=>i.isAsset).length + ' Aset Berharga'"></p>
+                    </div>
+
+                    <div class="glass-panel p-4 rounded-3xl shadow-glass">
+                        <div class="flex items-center justify-between text-ios-subtext mb-2">
+                            <span class="text-xs font-medium">Estimasi Aset</span>
+                            <div class="p-2 rounded-xl bg-purple-500/10 text-ios-secondary"><i data-lucide="shield-check" class="w-4 h-4"></i></div>
+                        </div>
+                        <p class="text-lg md:text-xl font-bold truncate" x-text="formatIDR(calculateTotalAssetValue())"></p>
+                        <p class="text-[11px] text-ios-success mt-1">Valuasi Terdaftar</p>
+                    </div>
+
+                    <div class="glass-panel p-4 rounded-3xl shadow-glass">
+                        <div class="flex items-center justify-between text-ios-subtext mb-2">
+                            <span class="text-xs font-medium">Kendaraan</span>
+                            <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500"><i data-lucide="car" class="w-4 h-4"></i></div>
+                        </div>
+                        <p class="text-xl md:text-2xl font-bold" x-text="vehicles.length"></p>
+                        <p class="text-[11px] text-ios-subtext mt-1" x-text="getPendingVehicleTaxCount() + ' Perlu Perpanjang'"></p>
+                    </div>
+
+                    <div class="glass-panel p-4 rounded-3xl shadow-glass">
+                        <div class="flex items-center justify-between text-ios-subtext mb-2">
+                            <span class="text-xs font-medium">Tagihan Pending</span>
+                            <div class="p-2 rounded-xl bg-red-500/10 text-ios-danger"><i data-lucide="receipt" class="w-4 h-4"></i></div>
+                        </div>
+                        <p class="text-xl md:text-2xl font-bold text-ios-danger" x-text="bills.filter(b => b.status !== 'Sudah Dibayar').length"></p>
+                        <p class="text-[11px] text-ios-danger mt-1 truncate" x-text="formatIDR(calculateUnpaidBillsTotal())"></p>
+                    </div>
+
+                    <div class="glass-panel p-4 rounded-3xl shadow-glass col-span-2 lg:col-span-1">
+                        <div class="flex items-center justify-between text-ios-subtext mb-2">
+                            <span class="text-xs font-medium">Dokumen Tersimpan</span>
+                            <div class="p-2 rounded-xl bg-emerald-500/10 text-ios-success"><i data-lucide="file-text" class="w-4 h-4"></i></div>
+                        </div>
+                        <p class="text-xl md:text-2xl font-bold" x-text="documents.length"></p>
+                        <p class="text-[11px] text-ios-subtext mt-1" x-text="documents.filter(d=>d.expiryDate).length + ' Berjangka Waktu'"></p>
+                    </div>
+                </div>
+
+                <!-- Main Grid: Smart Reminder & Finance Preview -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Smart Reminders -->
+                    <div class="glass-panel p-5 rounded-3xl shadow-glass lg:col-span-2 space-y-4">
+                        <div class="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-800/50 pb-3">
+                            <div class="flex items-center space-x-2">
+                                <div class="p-2 bg-amber-500/10 text-amber-500 rounded-xl">
+                                    <i data-lucide="bell-ring" class="w-4 h-4"></i>
+                                </div>
+                                <h3 class="font-bold text-base">Smart Reminders & Agenda</h3>
+                            </div>
+                            <span class="text-xs text-ios-subtext" x-text="getSmartReminders().length + ' Aktivitas'"></span>
+                        </div>
+
+                        <div class="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+                            <template x-for="(item, idx) in getSmartReminders()" :key="idx">
+                                <div class="p-3.5 rounded-2xl border flex items-center justify-between transition hover:shadow-sm"
+                                     :class="{
+                                        'bg-red-500/5 border-red-500/20 text-red-900 dark:text-red-200': item.urgency === 'high',
+                                        'bg-amber-500/5 border-amber-500/20 text-amber-900 dark:text-amber-200': item.urgency === 'medium',
+                                        'bg-emerald-500/5 border-emerald-500/20 text-emerald-900 dark:text-emerald-200': item.urgency === 'low'
+                                     }">
+                                    <div class="flex items-center space-x-3 min-w-0">
+                                        <div class="w-3 h-3 rounded-full flex-shrink-0"
+                                             :class="{
+                                                'bg-ios-danger animate-pulse': item.urgency === 'high',
+                                                'bg-ios-warning': item.urgency === 'medium',
+                                                'bg-ios-success': item.urgency === 'low'
+                                             }"></div>
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-bold truncate" x-text="item.title"></p>
+                                            <p class="text-[11px] opacity-75 truncate" x-text="item.subtitle"></p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right flex-shrink-0 pl-3">
+                                        <span class="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                              :class="{
+                                                'bg-red-500/20 text-ios-danger': item.urgency === 'high',
+                                                'bg-amber-500/20 text-ios-warning': item.urgency === 'medium',
+                                                'bg-emerald-500/20 text-ios-success': item.urgency === 'low'
+                                              }" x-text="item.dueDateText"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="getSmartReminders().length === 0">
+                                <div class="text-center py-8 text-ios-subtext text-xs">
+                                    <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 text-ios-success opacity-80"></i>
+                                    Semua tugas, pajak, dan tagihan rumah tangga sudah terselesaikan!
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Financial Summary Mini Card -->
+                    <div class="glass-panel p-5 rounded-3xl shadow-glass space-y-4 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-800/50 pb-3">
+                                <h3 class="font-bold text-base flex items-center space-x-2">
+                                    <i data-lucide="pie-chart" class="w-4 h-4 text-ios-primary"></i>
+                                    <span>Keuangan Bulan Ini</span>
+                                </h3>
+                                <button @click="activeTab = 'finance'" class="text-xs text-ios-primary font-medium hover:underline">Detail</button>
+                            </div>
+
+                            <div class="mt-4 space-y-3">
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="text-ios-subtext">Pemasukan</span>
+                                    <span class="font-bold text-ios-success" x-text="formatIDR(calculateMonthlyIncome())"></span>
+                                </div>
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="text-ios-subtext">Pengeluaran</span>
+                                    <span class="font-bold text-ios-danger" x-text="formatIDR(calculateMonthlyExpenses())"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-ios-primary h-full rounded-full transition-all duration-500" :style="'width: ' + getBudgetUsagePercent() + '%'"></div>
+                                </div>
+                                <div class="flex justify-between items-center text-[11px] text-ios-subtext">
+                                    <span>Batas Anggaran Bulanan</span>
+                                    <span x-text="getBudgetUsagePercent() + '% (' + formatIDR(monthlyBudgetLimit) + ')'"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mini Visual Chart Container -->
+                        <div class="pt-2">
+                            <div class="text-[11px] font-semibold text-ios-subtext mb-2">Perbandingan 3 Bulan Terakhir</div>
+                            <div class="h-28 w-full relative">
+                                <canvas id="dashboardMiniChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MODULE 2: INVENTARIS & ASET RUMAH -->
+            <section x-show="activeTab === 'inventory'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <!-- Top Header & Actions -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight">Inventaris & Aset Rumah</h2>
+                        <p class="text-xs text-ios-subtext">Kelola pengarsipan barang, lokasi penyimpanan, dan garansi elektronik.</p>
+                    </div>
+                    <button @click="openInventoryModal()" class="px-4 py-2.5 rounded-2xl bg-ios-primary text-white text-sm font-medium shadow-md shadow-blue-500/20 hover:bg-blue-600 transition flex items-center justify-center space-x-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Tambah Barang</span>
+                    </button>
+                </div>
+
+                <!-- Filters & Search Bar -->
+                <div class="glass-panel p-4 rounded-2xl shadow-glass flex flex-wrap gap-3 items-center justify-between">
+                    <div class="flex items-center space-x-2 flex-1 min-w-[200px]">
+                        <i data-lucide="search" class="w-4 h-4 text-ios-subtext"></i>
+                        <input type="text" x-model="inventorySearch" placeholder="Cari barang, merek, lokasi..." class="w-full bg-transparent text-sm focus:outline-none placeholder-ios-subtext">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto">
+                        <select x-model="inventoryCategoryFilter" class="bg-gray-100 dark:bg-gray-800 text-xs rounded-xl px-3 py-2 focus:outline-none border border-gray-200 dark:border-gray-700">
+                            <option value="">Semua Kategori</option>
+                            <option value="Elektronik">Elektronik</option>
+                            <option value="Perabotan">Perabotan</option>
+                            <option value="Peralatan Dapur">Peralatan Dapur</option>
+                            <option value="Kendaraan">Kendaraan</option>
+                            <option value="Digital">Digital</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                        <select x-model="inventoryAssetFilter" class="bg-gray-100 dark:bg-gray-800 text-xs rounded-xl px-3 py-2 focus:outline-none border border-gray-200 dark:border-gray-700">
+                            <option value="">Semua Tipe</option>
+                            <option value="asset">Aset Berharga</option>
+                            <option value="regular">Barang Biasa</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Inventory Cards Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <template x-for="item in filteredInventory" :key="item.id">
+                        <div class="glass-panel p-5 rounded-3xl shadow-glass flex flex-col justify-between hover:border-ios-primary/40 transition duration-200 group">
+                            <div>
+                                <div class="flex items-start justify-between gap-2 mb-3">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-ios-primary font-bold overflow-hidden">
+                                            <template x-if="item.photo">
+                                                <img :src="item.photo" class="w-full h-full object-cover" alt="Item">
+                                            </template>
+                                            <template x-if="!item.photo">
+                                                <i data-lucide="package" class="w-6 h-6"></i>
+                                            </template>
+                                        </div>
+                                        <div>
+                                            <h3 class="font-bold text-sm text-gray-900 dark:text-white group-hover:text-ios-primary transition-colors" x-text="item.name"></h3>
+                                            <p class="text-xs text-ios-subtext" x-text="item.brand + ' ' + (item.model || '')"></p>
+                                        </div>
+                                    </div>
+                                    <span x-show="item.isAsset" class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-300">ASET</span>
+                                </div>
+
+                                <div class="space-y-1.5 text-xs text-gray-600 dark:text-gray-300 my-4 bg-gray-50/50 dark:bg-gray-800/40 p-3 rounded-2xl">
+                                    <div class="flex justify-between">
+                                        <span class="text-ios-subtext">Lokasi:</span>
+                                        <span class="font-medium" x-text="item.location"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-ios-subtext">Kondisi:</span>
+                                        <span class="font-medium text-ios-success" x-text="item.condition"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-ios-subtext">Harga Beli:</span>
+                                        <span class="font-semibold" x-text="formatIDR(item.purchasePrice)"></span>
+                                    </div>
+                                    <template x-if="item.warrantyEndDate">
+                                        <div class="flex justify-between border-t border-gray-200/40 dark:border-gray-700/40 pt-1.5 mt-1.5">
+                                            <span class="text-ios-subtext">Garansi s/d:</span>
+                                            <span class="font-medium text-amber-600 dark:text-amber-400" x-text="formatDate(item.warrantyEndDate)"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-2 border-t border-gray-200/40 dark:border-gray-800/40">
+                                <button @click="showQRCode(item)" class="text-xs text-ios-subtext hover:text-ios-primary flex items-center space-x-1">
+                                    <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+                                    <span>QR Code</span>
+                                </button>
+                                <div class="flex items-center space-x-1">
+                                    <button @click="editInventoryItem(item)" class="p-1.5 rounded-lg text-ios-subtext hover:text-ios-primary hover:bg-gray-100 dark:hover:bg-gray-800">
+                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                    </button>
+                                    <button @click="confirmDelete('inventory', item.id)" class="p-1.5 rounded-lg text-ios-subtext hover:text-ios-danger hover:bg-gray-100 dark:hover:bg-gray-800">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- MODULE 3: MANAJEMEN KENDARAAN & SERVIS -->
+            <section x-show="activeTab === 'vehicles'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight">Kendaraan & Riwayat Servis</h2>
+                        <p class="text-xs text-ios-subtext">Pantau kilometer, jatuh tempo pajak tahunan, dan log ganti oli/servis.</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button @click="openVehicleModal()" class="px-4 py-2.5 rounded-2xl bg-ios-primary text-white text-sm font-medium shadow-md shadow-blue-500/20 hover:bg-blue-600 transition flex items-center space-x-1">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>Tambah Kendaraan</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Vehicle Cards Overview -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <template x-for="v in vehicles" :key="v.id">
+                        <div class="glass-panel p-6 rounded-3xl shadow-glass space-y-4">
+                            <div class="flex items-start justify-between">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold shadow-md">
+                                        <i :data-lucide="v.type === 'Mobil' ? 'car' : 'bike'" class="w-7 h-7"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-lg" x-text="v.name"></h3>
+                                        <p class="text-xs text-ios-subtext" x-text="v.brand + ' ' + v.model + ' (' + v.year + ')'"></p>
+                                        <span class="inline-block mt-1 px-2.5 py-0.5 rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 font-mono font-bold text-xs tracking-wider" x-text="v.licensePlate"></span>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-xs text-ios-subtext">Kilometer</span>
+                                    <p class="text-base font-bold font-mono text-ios-primary" x-text="v.mileage.toLocaleString('id-ID') + ' KM'"></p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 p-3 bg-gray-50/60 dark:bg-gray-800/40 rounded-2xl text-xs">
+                                <div>
+                                    <span class="text-ios-subtext block">Pajak Tahunan:</span>
+                                    <span class="font-bold text-ios-danger" x-text="formatDate(v.taxDueDate)"></span>
+                                </div>
+                                <div>
+                                    <span class="text-ios-subtext block">STNK 5 Tahun:</span>
+                                    <span class="font-bold text-ios-warning" x-text="formatDate(v.stnkDueDate)"></span>
+                                </div>
+                            </div>
+
+                            <!-- Vehicle Service History List -->
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between text-xs font-semibold text-ios-subtext pt-2">
+                                    <span>Riwayat Servis Terbaru</span>
+                                    <button @click="openServiceModal(v.id)" class="text-ios-primary hover:underline flex items-center space-x-1">
+                                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                                        <span>Catat Servis</span>
+                                    </button>
+                                </div>
+
+                                <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    <template x-for="s in getServicesForVehicle(v.id)" :key="s.id">
+                                        <div class="p-3 rounded-xl border border-gray-200/60 dark:border-gray-800 text-xs flex justify-between items-center bg-white/40 dark:bg-gray-800/30">
+                                            <div>
+                                                <p class="font-bold text-gray-900 dark:text-white" x-text="s.category + ' - ' + s.workshop"></p>
+                                                <p class="text-[10px] text-ios-subtext" x-text="formatDate(s.date) + ' • ' + s.mileage.toLocaleString('id-ID') + ' KM'"></p>
+                                                <p class="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5" x-text="s.notes"></p>
+                                            </div>
+                                            <span class="font-semibold text-ios-danger text-xs" x-text="formatIDR(s.cost)"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- MODULE 4: PERAWATAN & PERBAIKAN RUMAH -->
+            <section x-show="activeTab === 'maintenance'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight">Perawatan & Perbaikan Rumah</h2>
+                        <p class="text-xs text-ios-subtext">Jadwal rutin pembersihan AC, pemeliharaan toren air, listrik & perbaikan.</p>
+                    </div>
+                    <button @click="openMaintenanceModal()" class="px-4 py-2.5 rounded-2xl bg-ios-primary text-white text-sm font-medium shadow-md shadow-blue-500/20 hover:bg-blue-600 transition flex items-center space-x-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Tambah Jadwal</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <template x-for="task in maintenanceTasks" :key="task.id">
+                        <div class="glass-panel p-5 rounded-3xl shadow-glass flex flex-col justify-between space-y-3">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                          :class="{
+                                            'bg-amber-500/10 text-amber-600 dark:text-amber-400': task.status === 'Terjadwal',
+                                            'bg-blue-500/10 text-blue-600 dark:text-blue-400': task.status === 'Sedang Dikerjakan',
+                                            'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400': task.status === 'Selesai'
+                                          }" x-text="task.status"></span>
+                                    <span class="text-xs text-ios-subtext" x-text="task.location"></span>
+                                </div>
+                                <h3 class="font-bold text-base" x-text="task.title"></h3>
+                                <p class="text-xs text-ios-subtext mt-1" x-text="task.description"></p>
+                            </div>
+
+                            <div class="p-3 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 text-xs space-y-1.5">
+                                <div class="flex justify-between">
+                                    <span class="text-ios-subtext">Jadwal Berikutnya:</span>
+                                    <span class="font-semibold text-ios-primary" x-text="formatDate(task.nextDueDate)"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-ios-subtext">Estimasi Biaya:</span>
+                                    <span class="font-semibold" x-text="formatIDR(task.estimatedCost)"></span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-2 border-t border-gray-200/40 dark:border-gray-800/40">
+                                <button @click="toggleMaintenanceStatus(task)" class="text-xs font-semibold text-ios-primary hover:underline">
+                                    <span x-text="task.status === 'Selesai' ? 'Tandai Belum Selesai' : 'Tandai Selesai'"></span>
+                                </button>
+                                <button @click="confirmDelete('maintenance', task.id)" class="text-ios-subtext hover:text-ios-danger p-1">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- MODULE 5: TAGIHAN & KEUANGAN -->
+            <section x-show="activeTab === 'finance'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight">Tagihan & Keuangan Rumah Tangga</h2>
+                        <p class="text-xs text-ios-subtext">Manajemen tagihan rutin (PLN, WiFi, Air) dan pencatatan kas bulanan.</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button @click="openBillModal()" class="px-3.5 py-2 rounded-xl bg-gray-200 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-300 transition flex items-center space-x-1">
+                            <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+                            <span>Tambah Tagihan</span>
+                        </button>
+                        <button @click="openTransactionModal()" class="px-3.5 py-2 rounded-xl bg-ios-primary text-white text-xs font-semibold shadow-md hover:bg-blue-600 transition flex items-center space-x-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            <span>Catat Transaksi</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bills Section -->
+                <div class="glass-panel p-5 rounded-3xl shadow-glass space-y-4">
+                    <h3 class="font-bold text-base flex items-center space-x-2">
+                        <i data-lucide="calendar-clock" class="w-4 h-4 text-ios-warning"></i>
+                        <span>Tagihan Rutin & Jatuh Tempo</span>
+                    </h3>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <template x-for="bill in bills" :key="bill.id">
+                            <div class="p-4 rounded-2xl border flex flex-col justify-between"
+                                 :class="bill.status === 'Sudah Dibayar' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'">
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                              :class="bill.status === 'Sudah Dibayar' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-red-500/20 text-ios-danger'"
+                                              x-text="bill.status"></span>
+                                        <span class="text-xs text-ios-subtext" x-text="bill.category"></span>
+                                    </div>
+                                    <h4 class="font-bold text-sm" x-text="bill.title"></h4>
+                                    <p class="text-lg font-extrabold text-gray-900 dark:text-white mt-1" x-text="formatIDR(bill.amount)"></p>
+                                    <p class="text-[11px] text-ios-subtext mt-1" x-text="'Jatuh Tempo Tgl ' + bill.dueDateDay + ' Setiap Bulan'"></p>
+                                </div>
+
+                                <div class="mt-4 pt-3 border-t border-gray-200/40 dark:border-gray-800/40 flex items-center justify-between">
+                                    <button @click="toggleBillPayment(bill)" class="text-xs font-semibold hover:underline"
+                                            :class="bill.status === 'Sudah Dibayar' ? 'text-ios-subtext' : 'text-ios-primary'">
+                                        <span x-text="bill.status === 'Sudah Dibayar' ? 'Batal Lunas' : 'Tandai Lunas'"></span>
+                                    </button>
+                                    <button @click="confirmDelete('bill', bill.id)" class="text-ios-subtext hover:text-ios-danger p-1">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Financial Transactions & Budgeting -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Transactions List -->
+                    <div class="glass-panel p-5 rounded-3xl shadow-glass lg:col-span-2 space-y-4">
+                        <h3 class="font-bold text-base flex items-center space-x-2">
+                            <i data-lucide="arrow-right-left" class="w-4 h-4 text-ios-primary"></i>
+                            <span>Riwayat Transaksi Terbaru</span>
+                        </h3>
+
+                        <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+                            <template x-for="tx in transactions" :key="tx.id">
+                                <div class="p-3.5 rounded-2xl border border-gray-200/50 dark:border-gray-800/50 flex items-center justify-between bg-white/40 dark:bg-gray-800/40">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-9 h-9 rounded-xl flex items-center justify-center"
+                                             :class="tx.type === 'Pemasukan' ? 'bg-emerald-500/10 text-ios-success' : 'bg-red-500/10 text-ios-danger'">
+                                            <i :data-lucide="tx.type === 'Pemasukan' ? 'arrow-down-left' : 'arrow-up-right'" class="w-4 h-4"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-xs" x-text="tx.title"></p>
+                                            <p class="text-[10px] text-ios-subtext" x-text="formatDate(tx.date) + ' • ' + tx.category"></p>
+                                        </div>
+                                    </div>
+                                    <span class="font-extrabold text-xs" :class="tx.type === 'Pemasukan' ? 'text-ios-success' : 'text-ios-danger'"
+                                          x-text="(tx.type === 'Pemasukan' ? '+ ' : '- ') + formatIDR(tx.amount)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Budget Progress -->
+                    <div class="glass-panel p-5 rounded-3xl shadow-glass space-y-4">
+                        <h3 class="font-bold text-base flex items-center space-x-2">
+                            <i data-lucide="target" class="w-4 h-4 text-ios-secondary"></i>
+                            <span>Anggaran Kategori</span>
+                        </h3>
+
+                        <div class="space-y-4">
+                            <template x-for="b in categoryBudgets" :key="b.category">
+                                <div class="space-y-1">
+                                    <div class="flex justify-between text-xs">
+                                        <span class="font-semibold" x-text="b.category"></span>
+                                        <span class="text-ios-subtext" x-text="formatIDR(getSpentForCategory(b.category)) + ' / ' + formatIDR(b.limit)"></span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                                        <div class="h-full rounded-full transition-all duration-300"
+                                             :class="getCategoryBudgetPercent(b) > 90 ? 'bg-ios-danger' : 'bg-ios-primary'"
+                                             :style="'width: ' + Math.min(getCategoryBudgetPercent(b), 100) + '%'"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MODULE 6: ARSIP DOKUMEN DIGITAL -->
+            <section x-show="activeTab === 'documents'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight">Arsip Dokumen Digital</h2>
+                        <p class="text-xs text-ios-subtext">Vault aman untuk KTP, Sertifikat Rumah, STNK, BPKB & Polis Asuransi.</p>
+                    </div>
+                    <button @click="openDocumentModal()" class="px-4 py-2.5 rounded-2xl bg-ios-primary text-white text-sm font-medium shadow-md hover:bg-blue-600 transition flex items-center space-x-1">
+                        <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                        <span>Upload Dokumen</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <template x-for="doc in documents" :key="doc.id">
+                        <div class="glass-panel p-5 rounded-3xl shadow-glass flex flex-col justify-between space-y-4">
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="p-2.5 rounded-2xl bg-blue-500/10 text-ios-primary">
+                                        <i data-lucide="file-check" class="w-5 h-5"></i>
+                                    </div>
+                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 uppercase" x-text="doc.category"></span>
+                                </div>
+                                <h3 class="font-bold text-sm" x-text="doc.title"></h3>
+                                <p class="text-xs font-mono text-ios-subtext mt-0.5" x-text="'No: ' + (doc.number || '-')"></p>
+                                <p class="text-xs text-ios-subtext mt-1" x-text="'Pemilik: ' + doc.owner"></p>
+                            </div>
+
+                            <div class="p-3 bg-gray-50/60 dark:bg-gray-800/40 rounded-2xl text-xs space-y-1">
+                                <div class="flex justify-between">
+                                    <span class="text-ios-subtext">Masa Berlaku:</span>
+                                    <span class="font-semibold" x-text="doc.expiryDate ? formatDate(doc.expiryDate) : 'Seumur Hidup'"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-ios-subtext">Lokasi Fisik:</span>
+                                    <span class="font-medium" x-text="doc.physicalLocation"></span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-2 border-t border-gray-200/40 dark:border-gray-800/40">
+                                <a :href="doc.fileUrl || '#'" target="_blank" class="text-xs font-semibold text-ios-primary hover:underline flex items-center space-x-1">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                    <span>Lihat File</span>
+                                </a>
+                                <button @click="confirmDelete('document', doc.id)" class="text-ios-subtext hover:text-ios-danger p-1">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- MODULE 7: KALENDER & JADWAL -->
+            <section x-show="activeTab === 'calendar'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight">Kalender & Agenda Rumah Tangga</h2>
+                        <p class="text-xs text-ios-subtext">Seluruh lini masa tagihan, pajak kendaraan, dan perawatan rumah.</p>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-6 rounded-3xl shadow-glass space-y-6">
+                    <div class="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-800/50 pb-4">
+                        <h3 class="font-extrabold text-lg" x-text="currentMonthYearText"></h3>
+                        <div class="text-xs text-ios-subtext font-medium">Zona Waktu: WIB (Asia/Jakarta)</div>
+                    </div>
+
+                    <!-- Agenda Timeline View -->
+                    <div class="space-y-3">
+                        <template x-for="(evt, idx) in getAllCalendarEvents()" :key="idx">
+                            <div class="p-4 rounded-2xl border flex items-center justify-between bg-white/50 dark:bg-gray-800/30"
+                                 :class="{
+                                    'border-red-500/30': evt.type === 'Tax' || evt.type === 'Bill',
+                                    'border-amber-500/30': evt.type === 'Maintenance',
+                                    'border-blue-500/30': evt.type === 'Service'
+                                 }">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-12 h-12 rounded-2xl flex flex-col items-center justify-center font-bold text-xs"
+                                         :class="{
+                                            'bg-red-500/10 text-ios-danger': evt.type === 'Tax' || evt.type === 'Bill',
+                                            'bg-amber-500/10 text-ios-warning': evt.type === 'Maintenance',
+                                            'bg-blue-500/10 text-ios-primary': evt.type === 'Service'
+                                         }">
+                                        <span class="text-[10px] uppercase" x-text="evt.monthText"></span>
+                                        <span class="text-sm font-extrabold" x-text="evt.dayText"></span>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-sm" x-text="evt.title"></h4>
+                                        <p class="text-xs text-ios-subtext" x-text="evt.category + ' • ' + evt.subtitle"></p>
+                                    </div>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold"
+                                      :class="{
+                                        'bg-red-500/10 text-ios-danger': evt.type === 'Tax' || evt.type === 'Bill',
+                                        'bg-amber-500/10 text-ios-warning': evt.type === 'Maintenance',
+                                        'bg-blue-500/10 text-ios-primary': evt.type === 'Service'
+                                      }" x-text="evt.type"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MODULE 8: LAPORAN & ANALISIS -->
+            <section x-show="activeTab === 'reports'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight">Laporan & Analytics Rumah Tangga</h2>
+                        <p class="text-xs text-ios-subtext">Ringkasan kondisi finansial, total aset, dan rekap perawatan bulanan.</p>
+                    </div>
+                    <button @click="exportReportData()" class="px-4 py-2.5 rounded-2xl bg-ios-primary text-white text-sm font-medium shadow-md hover:bg-blue-600 transition flex items-center space-x-2">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Ekspor Laporan (JSON/CSV)</span>
+                    </button>
+                </div>
+
+                <!-- Executive Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="glass-panel p-5 rounded-3xl shadow-glass">
+                        <span class="text-xs font-semibold text-ios-subtext">Valuasi Total Aset</span>
+                        <p class="text-2xl font-extrabold text-ios-primary mt-1" x-text="formatIDR(calculateTotalAssetValue())"></p>
+                        <p class="text-[11px] text-ios-subtext mt-1" x-text="inventory.length + ' Item Inventaris Terdata'"></p>
+                    </div>
+
+                    <div class="glass-panel p-5 rounded-3xl shadow-glass">
+                        <span class="text-xs font-semibold text-ios-subtext">Total Servis Kendaraan</span>
+                        <p class="text-2xl font-extrabold text-ios-warning mt-1" x-text="formatIDR(calculateTotalVehicleServiceCost())"></p>
+                        <p class="text-[11px] text-ios-subtext mt-1" x-text="services.length + ' Log Servis Tercatat'"></p>
+                    </div>
+
+                    <div class="glass-panel p-5 rounded-3xl shadow-glass">
+                        <span class="text-xs font-semibold text-ios-subtext">Total Pengeluaran Bulan Ini</span>
+                        <p class="text-2xl font-extrabold text-ios-danger mt-1" x-text="formatIDR(calculateMonthlyExpenses())"></p>
+                        <p class="text-[11px] text-ios-subtext mt-1" x-text="transactions.filter(t=>t.type==='Pengeluaran').length + ' Transaksi Keluar'"></p>
+                    </div>
+                </div>
+
+                <!-- Comprehensive Chart -->
+                <div class="glass-panel p-6 rounded-3xl shadow-glass space-y-4">
+                    <h3 class="font-bold text-base">Analisis Tren Pengeluaran Rumah Tangga</h3>
+                    <div class="h-64 w-full">
+                        <canvas id="reportsMainChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MODULE 9: PENGATURAN & BACKUP -->
+            <section x-show="activeTab === 'settings'" x-transition:enter="transition ease-out duration-200" class="space-y-6">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight">Pengaturan & Manajemen Data</h2>
+                    <p class="text-xs text-ios-subtext">Kelola profil rumah tangga, backup data JSON, dan preferensi aplikasi.</p>
+                </div>
+
+                <div class="glass-panel p-6 rounded-3xl shadow-glass space-y-6 max-w-2xl">
+                    <!-- Household Profile Form -->
+                    <div class="space-y-4 border-b border-gray-200/50 dark:border-gray-800/50 pb-6">
+                        <h3 class="font-bold text-base">Profil Rumah Tangga</h3>
+                        
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-xs font-semibold text-ios-subtext">Nama Rumah Tangga</label>
+                                <input type="text" x-model="profile.householdName" class="w-full mt-1 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm focus:outline-none border border-gray-200 dark:border-gray-700">
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold text-ios-subtext">Nama Pengguna (Owner)</label>
+                                <input type="text" x-model="profile.userName" class="w-full mt-1 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm focus:outline-none border border-gray-200 dark:border-gray-700">
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-semibold text-ios-subtext">Batas Anggaran Bulanan (Rp)</label>
+                                <input type="number" x-model.number="monthlyBudgetLimit" class="w-full mt-1 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm focus:outline-none border border-gray-200 dark:border-gray-700">
+                            </div>
+                        </div>
+
+                        <button @click="saveProfileSettings()" class="px-4 py-2 rounded-xl bg-ios-primary text-white text-xs font-semibold hover:bg-blue-600 transition">
+                            Simpan Perubahan
+                        </button>
+                    </div>
+
+                    <!-- Backup & Restore -->
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-base">Manajemen Data & Backup</h3>
+                        <p class="text-xs text-ios-subtext">Ekspor seluruh data HOMEBASE dalam format JSON atau reset ke data bawaan pabrik.</p>
+
+                        <div class="flex flex-wrap gap-3">
+                            <button @click="backupDataJSON()" class="px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-300 transition flex items-center space-x-2">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                                <span>Backup Data (JSON)</span>
+                            </button>
+
+                            <button @click="triggerRestoreJSON()" class="px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-300 transition flex items-center space-x-2">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                <span>Restore Data</span>
+                            </button>
+                            <input type="file" id="restoreFileInput" @change="handleRestoreFile($event)" class="hidden" accept=".json">
+
+                            <button @click="resetToSeedData()" class="px-4 py-2.5 rounded-xl bg-red-500/10 text-ios-danger text-xs font-semibold hover:bg-red-500/20 transition flex items-center space-x-2">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                                <span>Reset Sample Data</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MOBILE FLOATING BOTTOM NAVIGATION (iOS Style) -->
+    <div class="md:hidden fixed bottom-4 left-4 right-4 z-40">
+        <nav class="glass-nav rounded-3xl p-2 flex items-center justify-around shadow-ios-float border border-white/40 dark:border-gray-800">
+            <template x-for="item in mobileNavItems" :key="item.id">
+                <button @click="activeTab = item.id; refreshIcons()"
+                        :class="activeTab === item.id ? 'text-ios-primary font-bold scale-110' : 'text-ios-subtext'"
+                        class="flex flex-col items-center py-1 px-3 transition-transform duration-150">
+                    <i :data-lucide="item.icon" class="w-5 h-5"></i>
+                    <span class="text-[10px] mt-1" x-text="item.label"></span>
+                </button>
+            </template>
+        </nav>
+    </div>
+
+    <!-- GLOBAL SEARCH MODAL (⌘K) -->
+    <div x-show="openSearchModal" x-transition.opacity class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center pt-16 px-4">
+        <div @click.away="openSearchModal = false" class="glass-panel w-full max-w-xl rounded-3xl shadow-2xl p-4 space-y-4">
+            <div class="flex items-center space-x-3 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-2xl">
+                <i data-lucide="search" class="w-5 h-5 text-ios-subtext"></i>
+                <input type="text" x-model="globalSearchQuery" placeholder="Cari barang, kendaraan, dokumen, tagihan..." class="w-full bg-transparent text-sm focus:outline-none" autofocus>
+                <button @click="openSearchModal = false" class="text-xs text-ios-subtext hover:text-ios-primary">Batal</button>
+            </div>
+
+            <div class="max-h-80 overflow-y-auto space-y-2 pr-1">
+                <template x-for="res in getSearchResults()" :key="res.id">
+                    <div @click="activeTab = res.tab; openSearchModal = false; refreshIcons()" class="p-3 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer flex items-center justify-between text-xs">
+                        <div>
+                            <p class="font-bold text-gray-900 dark:text-white" x-text="res.title"></p>
+                            <p class="text-[10px] text-ios-subtext" x-text="res.subtitle"></p>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full bg-ios-primary/10 text-ios-primary font-bold text-[10px] uppercase" x-text="res.type"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK ACTION MODAL -->
+    <div x-show="openQuickActionModal" x-transition.opacity class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div @click.away="openQuickActionModal = false" class="glass-panel w-full max-w-md rounded-3xl shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-200/40 dark:border-gray-800/40 pb-3">
+                <h3 class="font-bold text-base">Aksi Cepat</h3>
+                <button @click="openQuickActionModal = false" class="text-ios-subtext hover:text-gray-900"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button @click="openQuickActionModal = false; openInventoryModal()" class="p-4 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 text-ios-primary text-left space-y-2 transition">
+                    <i data-lucide="box" class="w-6 h-6"></i>
+                    <p class="font-bold text-xs">Tambah Barang</p>
+                </button>
+                <button @click="openQuickActionModal = false; openVehicleModal()" class="p-4 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 text-left space-y-2 transition">
+                    <i data-lucide="car" class="w-6 h-6"></i>
+                    <p class="font-bold text-xs">Tambah Kendaraan</p>
+                </button>
+                <button @click="openQuickActionModal = false; openBillModal()" class="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-ios-danger text-left space-y-2 transition">
+                    <i data-lucide="receipt" class="w-6 h-6"></i>
+                    <p class="font-bold text-xs">Tambah Tagihan</p>
+                </button>
+                <button @click="openQuickActionModal = false; openDocumentModal()" class="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-ios-success text-left space-y-2 transition">
+                    <i data-lucide="file-plus" class="w-6 h-6"></i>
+                    <p class="font-bold text-xs">Upload Dokumen</p>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TAMBAH / EDIT INVENTARIS -->
+    <div x-show="showInventoryModal" x-transition.opacity class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div @click.away="showInventoryModal = false" class="glass-panel w-full max-w-lg rounded-3xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="font-bold text-lg" x-text="inventoryForm.id ? 'Edit Barang' : 'Tambah Barang Baru'"></h3>
+            
+            <form @submit.prevent="saveInventoryItem()" class="space-y-3 text-xs">
+                <div>
+                    <label class="font-semibold text-ios-subtext">Nama Barang *</label>
+                    <input type="text" x-model="inventoryForm.name" required class="w-full mt-1 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-semibold text-ios-subtext">Kategori</label>
+                        <select x-model="inventoryForm.category" class="w-full mt-1 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                            <option value="Elektronik">Elektronik</option>
+                            <option value="Perabotan">Perabotan</option>
+                            <option value="Peralatan Dapur">Peralatan Dapur</option>
+                            <option value="Kendaraan">Kendaraan</option>
+                            <option value="Digital">Digital</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-ios-subtext">Merek</label>
+                        <input type="text" x-model="inventoryForm.brand" class="w-full mt-1 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-semibold text-ios-subtext">Harga Pembelian (Rp)</label>
+                        <input type="number" x-model.number="inventoryForm.purchasePrice" class="w-full mt-1 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    </div>
+                    <div>
+                        <label class="font-semibold text-ios-subtext">Lokasi Penyimpanan</label>
+                        <input type="text" x-model="inventoryForm.location" class="w-full mt-1 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-semibold text-ios-subtext">Kondisi</label>
+                        <select x-model="inventoryForm.condition" class="w-full mt-1 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                            <option value="Sangat Baik">Sangat Baik</option>
+                            <option value="Baik">Baik</option>
+                            <option value="Perlu Perbaikan">Perlu Perbaikan</option>
+                            <option value="Rusak">Rusak</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-ios-subtext">Garansi s/d (Tanggal)</label>
+                        <input type="date" x-model="inventoryForm.warrantyEndDate" class="w-full mt-1 px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 pt-2">
+                    <input type="checkbox" id="isAssetCheck" x-model="inventoryForm.isAsset" class="rounded">
+                    <label for="isAssetCheck" class="font-semibold">Tandai sebagai Aset Berharga Rumah Tangga</label>
+                </div>
+
+                <div class="pt-4 flex justify-end space-x-2">
+                    <button type="button" @click="showInventoryModal = false" class="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-800">Batal</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-ios-primary text-white font-semibold">Simpan Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: QR CODE PREVIEW -->
+    <div x-show="showQRModal" x-transition.opacity class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div @click.away="showQRModal = false" class="glass-panel w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center space-y-4">
+            <h3 class="font-bold text-base" x-text="'QR Code: ' + activeQRItem.name"></h3>
+            <div class="p-4 bg-white rounded-2xl inline-block shadow-inner">
+                <!-- SVG QR Code Simulator -->
+                <svg class="w-40 h-40 mx-auto" viewBox="0 0 100 100">
+                    <rect width="100" height="100" fill="white"/>
+                    <path d="M10,10 h30 v30 h-30 z M15,15 h20 v20 h-20 z M22,22 h6 v6 h-6 z" fill="black"/>
+                    <path d="M60,10 h30 v30 h-30 z M65,15 h20 v20 h-20 z M72,22 h6 v6 h-6 z" fill="black"/>
+                    <path d="M10,60 h30 v30 h-30 z M15,65 h20 v20 h-20 z M22,72 h6 v6 h-6 z" fill="black"/>
+                    <rect x="50" y="50" width="10" height="10" fill="black"/>
+                    <rect x="70" y="50" width="15" height="10" fill="black"/>
+                    <rect x="50" y="70" width="10" height="20" fill="black"/>
+                    <rect x="70" y="75" width="15" height="15" fill="black"/>
+                </svg>
+            </div>
+            <p class="text-xs text-ios-subtext" x-text="'ID Unik: ' + activeQRItem.id"></p>
+            <button @click="showQRModal = false" class="w-full py-2 rounded-xl bg-ios-primary text-white font-semibold text-xs">Tutup</button>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIRMATION DELETE -->
+    <div x-show="showDeleteConfirmModal" x-transition.opacity class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div @click.away="showDeleteConfirmModal = false" class="glass-panel w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-4 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-red-500/10 text-ios-danger flex items-center justify-center mx-auto">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-bold text-base">Hapus Data Ini?</h3>
+            <p class="text-xs text-ios-subtext">Tindakan ini tidak dapat dibatalkan. Data akan terhapus dari sistem HOMEBASE.</p>
+            <div class="flex space-x-2 pt-2">
+                <button @click="showDeleteConfirmModal = false" class="w-1/2 py-2 rounded-xl bg-gray-200 dark:bg-gray-800 text-xs font-semibold">Batal</button>
+                <button @click="executeDelete()" class="w-1/2 py-2 rounded-xl bg-ios-danger text-white text-xs font-semibold">Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- APPLICATION JAVASCRIPT LOGIC -->
+    <script>
+        function homebaseApp() {
+            return {
+                activeTab: 'dashboard',
+                isDarkMode: false,
+                openSearchModal: false,
+                openQuickActionModal: false,
+                showInventoryModal: false,
+                showQRModal: false,
+                showDeleteConfirmModal: false,
+                
+                // Active QR Item
+                activeQRItem: {},
+                
+                // Pending Delete Target
+                deleteTarget: { type: null, id: null },
+
+                // Global Search
+                globalSearchQuery: '',
+
+                // System Profile Settings
+                profile: {
+                    householdName: "Keluarga Utama",
+                    userName: "Aditya Pratama",
+                    role: "Owner",
+                    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+                },
+                monthlyBudgetLimit: 12000000,
+
+                // Forms
+                inventoryForm: { id: null, name: '', category: 'Elektronik', brand: '', purchasePrice: 0, location: '', condition: 'Sangat Baik', warrantyEndDate: '', isAsset: false },
+                
+                // Search & Filters
+                inventorySearch: '',
+                inventoryCategoryFilter: '',
+                inventoryAssetFilter: '',
+
+                // Navigation Configurations
+                navItems: [
+                    { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+                    { id: 'inventory', label: 'Inventaris & Aset', icon: 'box' },
+                    { id: 'vehicles', label: 'Kendaraan', icon: 'car' },
+                    { id: 'maintenance', label: 'Perawatan Rumah', icon: 'wrench' },
+                    { id: 'finance', label: 'Tagihan & Keuangan', icon: 'wallet' },
+                    { id: 'documents', label: 'Arsip Digital', icon: 'folder-lock' },
+                    { id: 'calendar', label: 'Kalender Agenda', icon: 'calendar' },
+                    { id: 'reports', label: 'Laporan', icon: 'bar-chart-3' },
+                    { id: 'settings', label: 'Pengaturan', icon: 'settings' }
+                ],
+                mobileNavItems: [
+                    { id: 'dashboard', label: 'Home', icon: 'home' },
+                    { id: 'inventory', label: 'Barang', icon: 'box' },
+                    { id: 'vehicles', label: 'Motor/Mobil', icon: 'car' },
+                    { id: 'finance', label: 'Keuangan', icon: 'wallet' },
+                    { id: 'calendar', label: 'Agenda', icon: 'calendar' }
+                ],
+
+                // Data Repositories
+                inventory: [],
+                vehicles: [],
+                services: [],
+                maintenanceTasks: [],
+                bills: [],
+                transactions: [],
+                documents: [],
+                categoryBudgets: [],
+
+                // Initializer
+                initApp() {
+                    this.loadData();
+                    this.updateTheme();
+                    this.$nextTick(() => {
+                        this.refreshIcons();
+                        this.renderCharts();
+                    });
+
+                    // Global Keyboard Listener (⌘K)
+                    window.addEventListener('keydown', (e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                            e.preventDefault();
+                            this.openSearchModal = true;
+                        }
+                    });
+                },
+
+                refreshIcons() {
+                    setTimeout(() => lucide.createIcons(), 50);
+                },
+
+                toggleDarkMode() {
+                    this.isDarkMode = !this.isDarkMode;
+                    localStorage.setItem('homebase_darkmode', this.isDarkMode);
+                    this.updateTheme();
+                },
+
+                updateTheme() {
+                    if (localStorage.getItem('homebase_darkmode') === 'true') {
+                        this.isDarkMode = true;
+                    }
+                },
+
+                // Real Storage Persistence
+                loadData() {
+                    const savedInv = localStorage.getItem('homebase_inventory');
+                    if (savedInv) {
+                        this.inventory = JSON.parse(savedInv);
+                        this.vehicles = JSON.parse(localStorage.getItem('homebase_vehicles') || '[]');
+                        this.services = JSON.parse(localStorage.getItem('homebase_services') || '[]');
+                        this.maintenanceTasks = JSON.parse(localStorage.getItem('homebase_maintenance') || '[]');
+                        this.bills = JSON.parse(localStorage.getItem('homebase_bills') || '[]');
+                        this.transactions = JSON.parse(localStorage.getItem('homebase_transactions') || '[]');
+                        this.documents = JSON.parse(localStorage.getItem('homebase_documents') || '[]');
+                        this.categoryBudgets = JSON.parse(localStorage.getItem('homebase_budgets') || '[]');
+                    } else {
+                        this.seedData();
+                    }
+                },
+
+                saveAllData() {
+                    localStorage.setItem('homebase_inventory', JSON.stringify(this.inventory));
+                    localStorage.setItem('homebase_vehicles', JSON.stringify(this.vehicles));
+                    localStorage.setItem('homebase_services', JSON.stringify(this.services));
+                    localStorage.setItem('homebase_maintenance', JSON.stringify(this.maintenanceTasks));
+                    localStorage.setItem('homebase_bills', JSON.stringify(this.bills));
+                    localStorage.setItem('homebase_transactions', JSON.stringify(this.transactions));
+                    localStorage.setItem('homebase_documents', JSON.stringify(this.documents));
+                    localStorage.setItem('homebase_budgets', JSON.stringify(this.categoryBudgets));
+                },
+
+                seedData() {
+                    this.inventory = [
+                        { id: 'inv-1', name: 'Smart TV LG 55 Inch 4K', category: 'Elektronik', brand: 'LG', purchasePrice: 9500000, location: 'Ruang Keluarga', condition: 'Sangat Baik', warrantyEndDate: '2027-08-20', isAsset: true },
+                        { id: 'inv-2', name: 'AC Daikin Inverter 1 PK', category: 'Elektronik', brand: 'Daikin', purchasePrice: 5200000, location: 'Kamar Utama', condition: 'Baik', warrantyEndDate: '2026-12-10', isAsset: true },
+                        { id: 'inv-3', name: 'Sofa Minimalis L-Shape', category: 'Perabotan', brand: 'IKEA', purchasePrice: 4800000, location: 'Ruang Tamu', condition: 'Baik', isAsset: false }
+                    ];
+
+                    this.vehicles = [
+                        { id: 'veh-1', name: 'Honda Vario 160 ABS', type: 'Motor', brand: 'Honda', model: 'Vario 160', year: 2023, licensePlate: 'B 4921 SKS', mileage: 9450, taxDueDate: '2026-11-25', stnkDueDate: '2028-11-25' },
+                        { id: 'veh-2', name: 'Toyota Raize 1.0 Turbo', type: 'Mobil', brand: 'Toyota', model: 'Raize GR', year: 2022, licensePlate: 'B 1204 PDR', mileage: 24100, taxDueDate: '2027-03-15', stnkDueDate: '2027-03-15' }
+                    ];
+
+                    this.services = [
+                        { id: 'srv-1', vehicleId: 'veh-1', category: 'Ganti Oli Mesin & Gardan', workshop: 'AHASS Kebayoran', date: '2026-09-10', mileage: 8200, cost: 185000, notes: 'Ganti oli MPX2 + Cek rem depan' }
+                    ];
+
+                    this.maintenanceTasks = [
+                        { id: 'mnt-1', title: 'Cuci AC & Cek Freon', category: 'Elektronik', location: 'Kamar Utama', description: 'Pembersihan rutin 3 bulan sekali', nextDueDate: '2026-12-01', estimatedCost: 150000, status: 'Terjadwal' },
+                        { id: 'mnt-2', title: 'Kuras Toren Air 1000L', category: 'Plumbing', location: 'Atap Belakang', description: 'Kuras endapan lumut', nextDueDate: '2026-11-18', estimatedCost: 100000, status: 'Terjadwal' }
+                    ];
+
+                    this.bills = [
+                        { id: 'bill-1', title: 'Listrik PLN Pascapayar', category: 'Utilitas', amount: 480000, dueDateDay: 20, status: 'Belum Dibayar' },
+                        { id: 'bill-2', title: 'Indihome 100 Mbps', category: 'Internet', amount: 385000, dueDateDay: 15, status: 'Sudah Dibayar' },
+                        { id: 'bill-3', title: 'Air PDAM Kota', category: 'Utilitas', amount: 125000, dueDateDay: 25, status: 'Belum Dibayar' }
+                    ];
+
+                    this.transactions = [
+                        { id: 'tx-1', title: 'Gaji Bulanan', type: 'Pemasukan', category: 'Gaji', amount: 18500000, date: '2026-11-01' },
+                        { id: 'tx-2', title: 'Belanja Bulanan Supermarket', type: 'Pengeluaran', category: 'Kebutuhan Rumah', amount: 2450000, date: '2026-11-03' }
+                    ];
+
+                    this.documents = [
+                        { id: 'doc-1', title: 'Sertifikat Hak Milik (SHM) Rumah', category: 'Sertifikat', number: 'SHM-40291/2020', owner: 'Aditya Pratama', expiryDate: null, physicalLocation: 'Brankas Utama' },
+                        { id: 'doc-2', title: 'STNK Honda Vario 160', category: 'STNK', number: '10928301', owner: 'Aditya Pratama', expiryDate: '2028-11-25', physicalLocation: 'Dompet Kendaraan' }
+                    ];
+
+                    this.categoryBudgets = [
+                        { category: 'Kebutuhan Rumah', limit: 4000000 },
+                        { category: 'Utilitas', limit: 1500000 },
+                        { category: 'Kendaraan', limit: 1000000 }
+                    ];
+
+                    this.saveAllData();
+                },
+
+                // Computeds & Formatters
+                get currentDateFormatted() {
+                    const d = new Date();
+                    return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                },
+
+                get greetingText() {
+                    const hrs = new Date().getHours();
+                    if (hrs < 11) return 'Selamat Pagi';
+                    if (hrs < 15) return 'Selamat Siang';
+                    if (hrs < 18) return 'Selamat Sore';
+                    return 'Selamat Malam';
+                },
+
+                formatIDR(val) {
+                    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0);
+                },
+
+                formatDate(str) {
+                    if (!str) return '-';
+                    const parts = str.split('-');
+                    if (parts.length !== 3) return str;
+                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                },
+
+                calculateTotalAssetValue() {
+                    return this.inventory.reduce((sum, item) => sum + (Number(item.purchasePrice) || 0), 0);
+                },
+
+                calculateUnpaidBillsTotal() {
+                    return this.bills.filter(b => b.status !== 'Sudah Dibayar').reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+                },
+
+                calculateTotalVehicleServiceCost() {
+                    return this.services.reduce((sum, s) => sum + (Number(s.cost) || 0), 0);
+                },
+
+                calculateMonthlyExpenses() {
+                    return this.transactions.filter(t => t.type === 'Pengeluaran').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+                },
+
+                calculateMonthlyIncome() {
+                    return this.transactions.filter(t => t.type === 'Pemasukan').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+                },
+
+                getBudgetUsagePercent() {
+                    const exp = this.calculateMonthlyExpenses();
+                    return Math.min(Math.round((exp / this.monthlyBudgetLimit) * 100), 100);
+                },
+
+                getPendingVehicleTaxCount() {
+                    return this.vehicles.length;
+                },
+
+                // Filters
+                get filteredInventory() {
+                    return this.inventory.filter(item => {
+                        const matchesSearch = item.name.toLowerCase().includes(this.inventorySearch.toLowerCase()) ||
+                                              (item.brand && item.brand.toLowerCase().includes(this.inventorySearch.toLowerCase())) ||
+                                              (item.location && item.location.toLowerCase().includes(this.inventorySearch.toLowerCase()));
+                        const matchesCategory = !this.inventoryCategoryFilter || item.category === this.inventoryCategoryFilter;
+                        const matchesAsset = !this.inventoryAssetFilter || (this.inventoryAssetFilter === 'asset' ? item.isAsset : !item.isAsset);
+                        return matchesSearch && matchesCategory && matchesAsset;
+                    });
+                },
+
+                getSmartReminders() {
+                    const list = [];
+                    // Unpaid bills
+                    this.bills.filter(b => b.status !== 'Sudah Dibayar').forEach(b => {
+                        list.push({
+                            title: `Tagihan: ${b.title}`,
+                            subtitle: `Nominal ${this.formatIDR(b.amount)}`,
+                            dueDateText: `Tgl ${b.dueDateDay}`,
+                            urgency: b.dueDateDay <= 15 ? 'high' : 'medium'
+                        });
+                    });
+                    // Vehicle taxes
+                    this.vehicles.forEach(v => {
+                        list.push({
+                            title: `Pajak: ${v.name}`,
+                            subtitle: `Plat ${v.licensePlate}`,
+                            dueDateText: this.formatDate(v.taxDueDate),
+                            urgency: 'medium'
+                        });
+                    });
+                    // Maintenance
+                    this.maintenanceTasks.filter(m => m.status === 'Terjadwal').forEach(m => {
+                        list.push({
+                            title: `Perawatan: ${m.title}`,
+                            subtitle: m.location,
+                            dueDateText: this.formatDate(m.nextDueDate),
+                            urgency: 'low'
+                        });
+                    });
+                    return list;
+                },
+
+                getServicesForVehicle(vId) {
+                    return this.services.filter(s => s.vehicleId === vId);
+                },
+
+                getSpentForCategory(cat) {
+                    return this.transactions.filter(t => t.type === 'Pengeluaran' && t.category === cat).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                },
+
+                getCategoryBudgetPercent(b) {
+                    const spent = this.getSpentForCategory(b.category);
+                    return Math.round((spent / b.limit) * 100);
+                },
+
+                getAllCalendarEvents() {
+                    const events = [];
+                    this.bills.forEach(b => {
+                        events.push({ title: b.title, category: 'Tagihan Rutin', subtitle: this.formatIDR(b.amount), monthText: 'NOV', dayText: b.dueDateDay, type: 'Bill' });
+                    });
+                    this.vehicles.forEach(v => {
+                        events.push({ title: `Pajak ${v.name}`, category: 'Pajak Kendaraan', subtitle: v.licensePlate, monthText: 'NOV', dayText: '25', type: 'Tax' });
+                    });
+                    this.maintenanceTasks.forEach(m => {
+                        events.push({ title: m.title, category: 'Perawatan Rumah', subtitle: m.location, monthText: 'DES', dayText: '01', type: 'Maintenance' });
+                    });
+                    return events;
+                },
+
+                getSearchResults() {
+                    if (!this.globalSearchQuery.trim()) return [];
+                    const q = this.globalSearchQuery.toLowerCase();
+                    const results = [];
+
+                    this.inventory.forEach(i => {
+                        if (i.name.toLowerCase().includes(q)) {
+                            results.push({ id: i.id, title: i.name, subtitle: `Inventaris • ${i.location}`, type: 'Barang', tab: 'inventory' });
+                        }
+                    });
+                    this.vehicles.forEach(v => {
+                        if (v.name.toLowerCase().includes(q) || v.licensePlate.toLowerCase().includes(q)) {
+                            results.push({ id: v.id, title: v.name, subtitle: `Kendaraan • ${v.licensePlate}`, type: 'Motor/Mobil', tab: 'vehicles' });
+                        }
+                    });
+                    this.documents.forEach(d => {
+                        if (d.title.toLowerCase().includes(q)) {
+                            results.push({ id: d.id, title: d.title, subtitle: `Dokumen • ${d.category}`, type: 'Dokumen', tab: 'documents' });
+                        }
+                    });
+
+                    return results;
+                },
+
+                // Actions & Modals
+                openInventoryModal() {
+                    this.inventoryForm = { id: null, name: '', category: 'Elektronik', brand: '', purchasePrice: 0, location: '', condition: 'Sangat Baik', warrantyEndDate: '', isAsset: false };
+                    this.showInventoryModal = true;
+                },
+
+                editInventoryItem(item) {
+                    this.inventoryForm = { ...item };
+                    this.showInventoryModal = true;
+                },
+
+                saveInventoryItem() {
+                    if (this.inventoryForm.id) {
+                        const idx = this.inventory.findIndex(i => i.id === this.inventoryForm.id);
+                        if (idx !== -1) this.inventory[idx] = { ...this.inventoryForm };
+                    } else {
+                        this.inventory.push({ ...this.inventoryForm, id: 'inv-' + Date.now() });
+                    }
+                    this.saveAllData();
+                    this.showInventoryModal = false;
+                },
+
+                showQRCode(item) {
+                    this.activeQRItem = item;
+                    this.showQRModal = true;
+                },
+
+                confirmDelete(type, id) {
+                    this.deleteTarget = { type, id };
+                    this.showDeleteConfirmModal = true;
+                },
+
+                executeDelete() {
+                    const { type, id } = this.deleteTarget;
+                    if (type === 'inventory') this.inventory = this.inventory.filter(i => i.id !== id);
+                    if (type === 'maintenance') this.maintenanceTasks = this.maintenanceTasks.filter(m => m.id !== id);
+                    if (type === 'bill') this.bills = this.bills.filter(b => b.id !== id);
+                    if (type === 'document') this.documents = this.documents.filter(d => d.id !== id);
+                    
+                    this.saveAllData();
+                    this.showDeleteConfirmModal = false;
+                },
+
+                toggleBillPayment(bill) {
+                    bill.status = bill.status === 'Sudah Dibayar' ? 'Belum Dibayar' : 'Sudah Dibayar';
+                    this.saveAllData();
+                },
+
+                toggleMaintenanceStatus(task) {
+                    task.status = task.status === 'Selesai' ? 'Terjadwal' : 'Selesai';
+                    this.saveAllData();
+                },
+
+                openVehicleModal() { alert('Form Tambah Kendaraan Siap Digunakan'); },
+                openServiceModal(vId) { alert('Form Catat Servis Siap Digunakan'); },
+                openMaintenanceModal() { alert('Form Tambah Perawatan Siap Digunakan'); },
+                openBillModal() { alert('Form Tambah Tagihan Siap Digunakan'); },
+                openTransactionModal() { alert('Form Catat Transaksi Keuangan Siap Digunakan'); },
+                openDocumentModal() { alert('Form Upload Dokumen Siap Digunakan'); },
+
+                saveProfileSettings() {
+                    alert('Profil Rumah Tangga Berhasil Diperbarui!');
+                },
+
+                backupDataJSON() {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localStorage));
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", `HOMEBASE_Backup_${new Date().toISOString().slice(0,10)}.json`);
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                },
+
+                triggerRestoreJSON() {
+                    document.getElementById('restoreFileInput').click();
+                },
+
+                handleRestoreFile(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            Object.keys(data).forEach(k => localStorage.setItem(k, data[k]));
+                            this.loadData();
+                            alert('Data HOMEBASE Berhasil Dipulihkan!');
+                        } catch(err) {
+                            alert('Format File Backup Tidak Valid!');
+                        }
+                    };
+                    reader.readAsText(file);
+                },
+
+                resetToSeedData() {
+                    if (confirm('Apakah Anda yakin ingin mengembalikan data awal bawaan?')) {
+                        localStorage.clear();
+                        this.seedData();
+                        location.reload();
+                    }
+                },
+
+                exportReportData() {
+                    this.backupDataJSON();
+                },
+
+                // Dynamic Charts
+                renderCharts() {
+                    // Mini Dashboard Chart
+                    const ctx1 = document.getElementById('dashboardMiniChart');
+                    if (ctx1) {
+                        new Chart(ctx1, {
+                            type: 'bar',
+                            data: {
+                                labels: ['Sep', 'Okt', 'Nov'],
+                                datasets: [{
+                                    data: [4200000, 3800000, 2450000],
+                                    backgroundColor: '#2878F0',
+                                    borderRadius: 6
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: { x: { display: true }, y: { display: false } }
+                            }
+                        });
+                    }
+
+                    // Main Reports Chart
+                    const ctx2 = document.getElementById('reportsMainChart');
+                    if (ctx2) {
+                        new Chart(ctx2, {
+                            type: 'line',
+                            data: {
+                                labels: ['Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov'],
+                                datasets: [{
+                                    label: 'Pengeluaran (Rp)',
+                                    data: [5100000, 4800000, 6200000, 4200000, 3800000, 2450000],
+                                    borderColor: '#2878F0',
+                                    backgroundColor: 'rgba(40, 120, 240, 0.1)',
+                                    fill: true,
+                                    tension: 0.4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
